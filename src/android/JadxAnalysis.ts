@@ -167,10 +167,14 @@ const searchClasses = async (
         "JADX class pagination is incomplete",
       );
   } while (classes.length < total);
-  if (new Set(classes).size !== classes.length || total !== loaded.class_count)
+  // Repeated names are not replayed pages: JADX renames identifiers that are
+  // illegal in Java (Kotlin's okio/-SegmentedByteString facade beside
+  // okio/SegmentedByteString), so distinct DEX classes can share a display
+  // name. Pagination offsets above already establish a single pass.
+  if (total !== loaded.class_count)
     throw new AnalysisOutputError(
       request.operation,
-      "JADX class inventory is duplicated or differs from the loaded class count",
+      "JADX class inventory differs from the loaded class count",
     );
   return androidResultSchemas.search_android_classes.parse({
     engine,

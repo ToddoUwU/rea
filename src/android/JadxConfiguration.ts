@@ -173,7 +173,15 @@ const requireEngineArchive = async (
     "com/google/gson/Gson.class",
     "io/modelcontextprotocol/kotlin/sdk/server/Server.class",
   ]);
-  const reader = new ZipArtifactReader(jar, "zip", JAR_METADATA_READ_MAX_BYTES);
+  // The audited fat JAR repeats license resources (META-INF/LICENSE.txt);
+  // this check only tests for class names, so repeats are skipped.
+  const reader = new ZipArtifactReader(
+    jar,
+    "zip",
+    JAR_METADATA_READ_MAX_BYTES,
+    undefined,
+    "skip-repeated",
+  );
   try {
     for await (const entry of reader.entries(signal)) {
       if (entry.kind === "file" && !entry.encrypted) missing.delete(entry.path);

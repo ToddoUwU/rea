@@ -118,6 +118,13 @@ class NodeFileReader extends Reader<string> {
   }
 }
 
+/**
+ * How repeated member filenames are handled. Artifact workflows that need
+ * unique logical paths reject them; classpath inventories that only test for
+ * the presence of names may skip each repeat after its first record.
+ */
+export type ZipDuplicateNamePolicy = "reject" | "skip-repeated";
+
 /** Lazy Zip64-capable reader with CRC and overlap verification on every read. */
 export class ZipArtifactReader implements ArtifactReader {
   readonly format: ZipPackageFormat;
@@ -128,14 +135,18 @@ export class ZipArtifactReader implements ArtifactReader {
     { readonly source: Entry; readonly metadata: ArtifactEntry }
   >();
 
+  readonly #duplicateNames: ZipDuplicateNamePolicy;
+
   /** Optionally bound each metadata read before allocating its backing buffer. */
   constructor(
     path: string,
     format: ZipPackageFormat,
     maximumMetadataReadBytes?: number,
     admitted?: StableRegularFileDescriptor,
+    duplicateNames: ZipDuplicateNamePolicy = "reject",
   ) {
     this.format = format;
+    this.#duplicateNames = duplicateNames;
     this.#source = new NodeFileReader(path, maximumMetadataReadBytes, admitted);
     this.#reader = new ZipReader(this.#source, {
       checkSignature: true,
@@ -152,11 +163,14 @@ export class ZipArtifactReader implements ArtifactReader {
       abortIfNeeded(signal);
       // Each enumeration can replay valid entries, but a second record with
       // the same name must not replace an already emitted source identity.
-      if (filenames.has(entry.filename))
+      // Name-only inventories may skip the repeat and keep the first record.
+      if (filenames.has(entry.filename)) {
+        if (this.#duplicateNames === "skip-repeated") continue;
         throw new ArtifactReaderFailure(
           "path",
           `Artifact path collision: ${entry.filename}`,
         );
+      }
       filenames.add(entry.filename);
       const metadata = projectZipEntry(entry);
       this.#entries.set(entry.filename, {

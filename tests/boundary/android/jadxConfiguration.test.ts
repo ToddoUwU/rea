@@ -86,6 +86,45 @@ it("accepts a full JDK and canonicalizes the selected JAR", async () => {
   });
 });
 
+it("accepts an engine JAR that repeats license resource names", async () => {
+  const root = await createTestTempDirectory("rea-jadx-config-");
+  const jar = join(root, "jadx-headless-mcp.jar");
+  const javaHome = await createFakeJdk(root);
+  // As in the real JAR, the repeats precede the required classes; inventory
+  // stops once every class is found, so later repeats would go unread.
+  await writeOrderedZip(jar, [
+    "META-INF/LICENSE.txt",
+    "META-INF/LICENSE.tx2",
+    "com/atxx/jhmcp/JadxSession.class",
+    "com/atxx/jhmcp/SessionHolder.class",
+    "jadx/api/JadxDecompiler.class",
+    "com/google/gson/Gson.class",
+    "io/modelcontextprotocol/kotlin/sdk/server/Server.class",
+  ]);
+  // zip.js refuses to write duplicate names. Rename the second record in its
+  // local and central-directory headers; the names have equal byte lengths.
+  const bytes = await readFile(jar);
+  const placeholder = Buffer.from("META-INF/LICENSE.tx2");
+  let renamed = 0;
+  for (
+    let index = bytes.indexOf(placeholder);
+    index >= 0;
+    index = bytes.indexOf(placeholder, index + 1)
+  ) {
+    bytes.write("META-INF/LICENSE.txt", index);
+    renamed += 1;
+  }
+  expect(renamed).toBe(2);
+  await writeFile(jar, bytes);
+
+  await expect(
+    resolveConfiguration(
+      { REA_JADX_MCP_JAR: jar, JAVA_HOME: javaHome },
+      "inspect_android_package",
+    ),
+  ).resolves.toMatchObject({ jar: await realpath(jar) });
+});
+
 it("configures heap and visible processors independently without forcing either", async () => {
   const root = await createTestTempDirectory("rea-jadx-config-");
   const jar = join(root, "engine.jar");

@@ -277,6 +277,26 @@ it("fetches all class pages rather than silently retaining the first upstream pa
   await verifyCleanup(launches);
 });
 
+it("retains distinct classes that JADX reports under one display name", async () => {
+  const { service, apk, launches, provider } =
+    await setup("display-name-alias");
+  const outcome = await service.execute("search_android_classes", {
+    path: apk,
+    query: "okio.",
+  });
+  if (!outcome.ok) throw outcome.error;
+  const result = androidResultSchemas.search_android_classes.parse(
+    outcome.value.normalized_result,
+  );
+  expect(result.total_classes).toBe(403);
+  expect(result.matches).toEqual([
+    "okio.SegmentedByteString",
+    "okio.SegmentedByteString",
+  ]);
+  await provider.close();
+  await verifyCleanup(launches);
+});
+
 it("exposes overload candidates and executes only an explicitly selected ambiguous method", async () => {
   const { service, apk, launches, provider } = await setup();
   const input = {

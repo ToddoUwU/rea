@@ -16,6 +16,11 @@ const classes = [
     { length: mode === "large-inventory" ? 9000 : 400 },
     (_, index) => `fixture.Class${index}`,
   ),
+  // JADX reports okio/-SegmentedByteString and okio/SegmentedByteString,
+  // two distinct DEX classes, under the same Java-legal display name.
+  ...(mode === "display-name-alias"
+    ? ["okio.SegmentedByteString", "okio.SegmentedByteString"]
+    : []),
 ];
 const methods = [
   {
